@@ -11,16 +11,24 @@ import requests
 import re
 import json
 
-# Version info and author info
-TOOL_NAME = "Dilshuppa Network Scanner"
-AUTHOR = "Dilshuppa"
-VERSION = "1.1"
+# Function to display the aesthetic startup message with the author's name
+def display_intro():
+    intro_message = '''
+    ##################################################
+    #              Dilshuppa Net Scanner             #
+    #               Author: DILSHUPPA                #
+    #    linkedIn : linkedin.com/in/dilshuppa        #
+    ##################################################
+    '''
+    print(intro_message)
+    print("Don't Misuse your Hacking skills, Hacking is an Art. So try to respect It! \n")
+
 
 # Print Tool Info
 def print_tool_info():
     print(f"Tool Name: {TOOL_NAME}")
     print(f"Author: {AUTHOR}")
-    print(f"Version: {VERSION}")
+    print("to contact the Auther just google : dilshuppa")
     print("\nFeatures:")
     print("- IP Address Detection")
     print("- Subnet Scan")
