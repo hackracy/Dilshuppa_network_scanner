@@ -1,169 +1,113 @@
-#!/usr/bin/env python3
-import socket
-import os
 import subprocess
-import platform
-import nmap
-import psutil
-from scapy.all import ARP, Ether, srp
-from sys import exit
-import requests
 import re
-import json
 
-# Function to display the aesthetic startup message with the author's name
 def display_intro():
     intro_message = '''
     ##################################################
-    #              Dilshuppa Net Scanner             #
+    #                   D_NetScanner                 #
     #               Author: DILSHUPPA                #
     #    linkedIn : linkedin.com/in/dilshuppa        #
     ##################################################
     '''
     print(intro_message)
-    print("Don't Misuse your Hacking skills, Hacking is an Art. So try to respect It! \n")
+    print("Don't Misuse your Hacking skills. Hacking is an Art So Hackers, So Hackers are Artists, try to respect Them! \n")
 
 
-# Print Tool Info
-def print_tool_info():
-    print(f"Tool Name: {TOOL_NAME}")
-    print(f"Author: {AUTHOR}")
-    print("to contact the Auther just google : dilshuppa")
-    print("\nFeatures:")
-    print("- IP Address Detection")
-    print("- Subnet Scan")
-    print("- MAC Address, Hostname, OS, Open Ports, and Services Info")
-    print("- Vulnerability Scanning for Outdated Services")
-    print("- Advanced Scanning Options")
-    print("- More Accurate OS Detection\n")
-
-# Get local IP address
-def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.settimeout(0)
-    try:
-        s.connect(('10.254.254.254', 1))
-        ip = s.getsockname()[0]
-    except Exception:
-        ip = '127.0.0.1'
-    finally:
-        s.close()
-    return ip
-
-# Perform ARP scan to detect devices in the subnet
-def arp_scan(target_ip):
-    print("Performing subnet scan...")
-    target_ip = f"{target_ip}/24"
-    # Craft ARP request to get all devices in the network
-    arp_request = ARP(pdst=target_ip)
-    broadcast = Ether(dst="ff:ff:ff:ff:ff:ff")
-    arp_request_broadcast = broadcast/arp_request
-    answered_list = srp(arp_request_broadcast, timeout=1, verbose=False)[0]
-    devices = []
-    for element in answered_list:
-        device = {
-            "ip": element[1].psrc,
-            "mac": element[1].hwsrc,
-            "hostname": get_device_hostname(element[1].psrc),
-            "os": get_device_os(element[1].psrc)
-        }
-        devices.append(device)
-    return devices
-
-# Get the hostname of a device
-def get_device_hostname(ip):
-    try:
-        hostname = socket.gethostbyaddr(ip)[0]
-    except socket.herror:
-        hostname = "Unknown"
-    return hostname
-
-# Get the OS details using nmap or other methods
-def get_device_os(ip):
-    nm = nmap.PortScanner()
-    try:
-        nm.scan(ip, '80')  # Scan a common port to attempt OS detection
-        if 'osmatch' in nm[ip]:
-            return nm[ip]['osmatch'][0]['name']
-        else:
-            return "Unknown"
-    except Exception:
-        return "Unknown"
-
-# Advanced Port Scanning with Nmap
-def scan_ports(ip, port_range="1-1024"):
-    nm = nmap.PortScanner()
-    print(f"Scanning open ports for IP: {ip} within range: {port_range}")
-    try:
-        nm.scan(ip, port_range)
-        return nm[ip]['tcp']
-    except KeyError:
-        return {}
-
-# Check for known vulnerable service versions (Simple example using CVE database)
-def check_vulnerabilities(service_name, version):
-    vulnerabilities = {
-        "apache": {
-            "2.4.0": "CVE-2021-22995",
-            "2.4.1": "CVE-2021-22996",
-        },
-        "nginx": {
-            "1.14.0": "CVE-2021-23047",
-        },
-        "ftp": {
-            "3.1.2": "CVE-2021-22991",
-        }
-    }
-    
-    if service_name in vulnerabilities and version in vulnerabilities[service_name]:
-        return vulnerabilities[service_name][version]
+def get_ip():
+    result = subprocess.run(["ip", "a"], capture_output=True, text=True)
+    ip_list = re.findall(r'inet (\d+\.\d+\.\d+\.\d+)/(\d+)', result.stdout)
+    for ip in ip_list:
+        if not ip[0].startswith("127."):
+            return f"{ip[0]}/{ip[1]}"
     return None
+    
+def scan_hosts(network):
+    print("Starting scan on:", network)
+    result = subprocess.run(["nmap", "-sn", network], capture_output=True, text=True)
+    hosts = re.findall(r"Nmap scan report for (\d+\.\d+\.\d+\.\d+)", result.stdout)
+    return hosts
+    
+def full_scan(host):
+    print("Scanning", host)
+    result = subprocess.run(["sudo", "nmap", "-Pn", "-A", "-sS", "-sU", "-p-", "-T4", "-v", host], capture_output=True, text=True)
+    print(result.stdout)
+    return result.stdout
 
-# Scan for vulnerabilities
-def perform_vuln_scan(devices):
-    for device in devices:
-        ip = device['ip']
-        open_ports = scan_ports(ip)
-        for port, details in open_ports.items():
-            service_name = details['name']
-            version = details.get('version', 'Unknown')
-            vuln = check_vulnerabilities(service_name, version)
-            if vuln:
-                print(f"Vulnerability detected for {service_name} version {version} on {ip}:{port} - CVE: {vuln}")
-            else:
-                print(f"No vulnerabilities found for {service_name} version {version} on {ip}:{port}")
+def find_open_ports(scan_result):
+    open_ports = []
+    for line in scan_result.splitlines():
+        if re.search(r'\d+/(tcp|udp)\s+open', line):
+            open_ports.append(line)
+    return open_ports
 
-def print_device_info(devices):
-    print("\nDevices found in your network:")
-    for device in devices:
-        print(f"\nIP: {device['ip']}")
-        print(f"MAC: {device['mac']}")
-        print(f"Hostname: {device['hostname']}")
-        print(f"Operating System: {device['os']}")
-        
-        open_ports = scan_ports(device['ip'])
-        print(f"Open Ports: {open_ports}")
-        
-        # Perform vulnerability scan for each device
-        print(f"Scanning for vulnerabilities on {device['ip']}...\n")
-        perform_vuln_scan([device])
+def search_vuln(service):
+    service_name = ' '.join(service.split()[2:]) if len(service.split()) >= 3 else service
+    if service_name:
+        print("Searching for vulnerabilities:", service_name)
+        subprocess.run(["searchsploit", service_name])
+    else:
+        print("Invalid service info")
+
+def run_vuln_scripts(host):
+    print("\n[*] Running Nmap vulnerability scripts...\n")
+    subprocess.run(["sudo", "nmap", "--script=vuln", "-sV", "-p-", host])
+
+def check_smb(host):
+    print("\n[*] Running SMB vulnerability scans...\n")
+    subprocess.run(["smbclient", "-L", host, "-N"])
+    subprocess.run(["smbmap", "-H", host, "-u", "guest", "-p", ""])
+    subprocess.run(["enum4linux", "-a", host])
+
+def capture_traffic():
+    print("\n[*] Running tcpdump...\n")
+    subprocess.run(["sudo", "tcpdump", "-i", "eth0", "-nn", "-s0", "-v"])
+
+def check_os_vulns(host):
+    print("\n[*] Scanning for OS vulnerabilities...\n")
+    if "windows" in host.lower():
+        print("[*] Scanning Windows SMB vulnerabilities...\n")
+        subprocess.run(["sudo", "nmap", "--script", "smb-vuln-ms17-010", "-sV", host])
+    elif "linux" in host.lower():
+        print("[*] Scanning Linux vulnerabilities...\n")
+        subprocess.run(["sudo", "nmap", "--script", "linux", "-sV", host])
 
 def main():
-    # Print tool info
-    print_tool_info()
+    display_intro() 
+    print("Be patient if you have passion ")
+    ip = get_ip()
+    if not ip:
+        print("No IP found")
+        return
 
-    # Get local IP address
-    local_ip = get_local_ip()
-    print(f"Local IP Address: {local_ip}")
+    hosts = scan_hosts(ip)
+    if not hosts:
+        print("No hosts found")
+        return
 
-    # Perform ARP Scan to detect devices in the subnet
-    devices = arp_scan(local_ip)
-    if not devices:
-        print("No devices found in the network.")
-        exit(1)
+    for i, host in enumerate(hosts):
+        print(f"{i + 1}: {host}")
 
-    # Print details for each device found
-    print_device_info(devices)
+    try:
+        choice = int(input("Pick a host: "))
+    except ValueError:
+        print("Invalid input")
+        return
+
+    if choice < 1 or choice > len(hosts):
+        print("Invalid choice")
+        return
+
+    selected_host = hosts[choice - 1]
+    scan_result = full_scan(selected_host)
+    open_ports = find_open_ports(scan_result)
+
+    for port in open_ports:
+        search_vuln(port)
+
+    run_vuln_scripts(selected_host)
+    check_smb(selected_host)
+    capture_traffic()
+    check_os_vulns(selected_host)
 
 if __name__ == "__main__":
     main()
