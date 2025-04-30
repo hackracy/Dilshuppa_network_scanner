@@ -10,7 +10,7 @@ def display_intro():
     ##################################################
     '''
     print(intro_message)
-    print("Don't Misuse your Hacking skills. Hacking is an Art So Hackers, So Hackers are Artists, try to respect Them! \n")
+    print("Don't Misuse your Hacking skills. Hacking is an Art So, Hackers are Artists, try to respect Them! \n")
 
 
 def get_ip():
